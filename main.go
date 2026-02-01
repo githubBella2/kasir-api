@@ -3,9 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+
+	"kasir-api/database"
+	"kasir-api/handlers"
+	"kasir-api/repositories"
+	"kasir-api/services"
+
+	"github.com/spf13/viper"
 )
 
 type Produk struct {
@@ -21,6 +30,47 @@ var produk = []Produk{
 }
 
 func main() {
+	// viper.SetConfigFile(".env")
+	// viper.SetConfigType("env")
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if _, err := os.Stat(".env"); err == nil {
+		viper.SetConfigFile(".env")
+		_ = viper.ReadInConfig()
+	}
+
+	config := Config{
+		Port:    viper.GetString("PORT"),
+		DB_CONN: viper.GetString("DB_CONN"),
+	}
+
+	// Setup database
+	db, err := database.InitDB(config.DB_CONN)
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
+
+	productRepo := repositories.NewProductRepository(db)
+	ProductService := services.NewProductService(productRepo)
+	ProductHandler := handlers.NewProductHandler(ProductService)
+
+	//setup route
+	http.HandleFunc("/api/products", ProductHandler.HandleProducts)
+	http.HandleFunc("/api/products/", ProductHandler.HandleProductByID)
+
+
+	// DEBUG WAJIB
+	fmt.Println("PORT =", config.Port)
+	fmt.Println("DB_CONN =", config.DB_CONN)
+
+	if config.DB_CONN == "" {
+		log.Fatal("DB_CONN KOSONG — .env tidak terbaca")
+	}
+
+	
+
 	// POST
 	// GET
 	http.HandleFunc("/api/produk", func(w http.ResponseWriter, r *http.Request) {
@@ -91,8 +141,8 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	fmt.Println("Server running di localhost:8080")
-	err := http.ListenAndServe(":8080", nil)
+	fmt.Println("Server running di localhost:" + config.Port)
+	err = http.ListenAndServe(":"+config.Port, nil)
 	if err != nil {
 		fmt.Println("gagal running server:", err)
 	}
@@ -174,7 +224,6 @@ func deleteProduk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	
 	//loop produk , cari id yang mau dihapus
 	for i := range produk {
 		if produk[i].ID == id {
@@ -183,10 +232,18 @@ func deleteProduk(w http.ResponseWriter, r *http.Request) {
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{
-				"message":"sukses delete",
+				"message": "sukses delete",
 			})
 			return
 		}
 	}
 	http.Error(w, "Produk belum ada", http.StatusNotFound)
 }
+
+// ============================
+type Config struct {
+	Port    string `mapstructure:"PORT"`
+	DB_CONN string `mapstructure:"DB_CONN"`
+}
+
+// Setup database
