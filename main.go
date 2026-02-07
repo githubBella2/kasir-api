@@ -19,14 +19,14 @@ import (
 
 type Produk struct {
 	ID    int    `json:"id" validate:"min:10"`
-	Nama  string `json:"nama"`
-	Harga int    `json:"harga"`
-	Stok  int    `json:"stok"`
+	Name  string `json:"name"`
+	Price int    `json:"price"`
+	Stock int    `json:"stock"`
 }
 
 var produk = []Produk{
-	{ID: 1, Nama: "Indomie Rebus", Harga: 3500, Stok: 10},
-	{ID: 2, Nama: "Martabak Kanji", Harga: 3000, Stok: 40},
+	{ID: 1, Name: "Indomie Rebus", Price: 3500, Stock: 10},
+	{ID: 2, Name: "Martabak Kanji", Price: 3000, Stock: 40},
 }
 
 func main() {
@@ -60,6 +60,12 @@ func main() {
 	http.HandleFunc("/api/products", ProductHandler.HandleProducts)
 	http.HandleFunc("/api/products/", ProductHandler.HandleProductByID)
 
+	//Transaction
+	transactionRepo := repositories.NewTransactionRepository(db)
+	transactionService := services.NewTransactionService(transactionRepo)
+	transactionHandler := handlers.NewTransactionHandler(transactionService)
+
+	http.HandleFunc("/api/checkout", transactionHandler.HandleCheckout) // POST
 
 	// DEBUG WAJIB
 	fmt.Println("PORT =", config.Port)
@@ -68,8 +74,6 @@ func main() {
 	if config.DB_CONN == "" {
 		log.Fatal("DB_CONN KOSONG — .env tidak terbaca")
 	}
-
-	
 
 	// POST
 	// GET
