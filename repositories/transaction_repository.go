@@ -79,7 +79,7 @@ func (repo *TransactionRepository) CreateTransaction(items []models.CheckoutItem
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
-	}
+	} 
 
 	return &models.Transaction{
 		ID:          transactionID,
