@@ -67,6 +67,13 @@ func main() {
 
 	http.HandleFunc("/api/checkout", transactionHandler.HandleCheckout) // POST
 
+
+	//Sales
+	// http.HandleFunc("/api/report/", transactionHandler.HandleSales) // GET
+	http.HandleFunc("/api/report/hari-ini", transactionHandler.HandleTodayReport)
+	
+	
+	
 	// DEBUG WAJIB
 	fmt.Println("PORT =", config.Port)
 	fmt.Println("DB_CONN =", config.DB_CONN)

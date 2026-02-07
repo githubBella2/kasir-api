@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"kasir-api/models"
+	"time"
 )
 
 type TransactionRepository struct {
@@ -63,10 +64,24 @@ func (repo *TransactionRepository) CreateTransaction(items []models.CheckoutItem
 	}
 
 	var transactionID int
-	err = tx.QueryRow("INSERT INTO transactions (total_amount) VALUES ($1) RETURNING id", totalAmount).Scan(&transactionID)
+	// err = tx.QueryRow("INSERT INTO transactions (total_amount) VALUES ($1) RETURNING id", totalAmount).Scan(&transactionID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	err = tx.QueryRow("INSERT INTO transactions (total_amount, created_at) VALUES ($1, NOW()) RETURNING id", totalAmount).Scan(&transactionID)
 	if err != nil {
 		return nil, err
 	}
+
+	// for i := range details {
+	// 	details[i].TransactionID = transactionID
+	// 	_, err = tx.Exec("INSERT INTO transaction_details (transaction_id, product_id, quantity, subtotal) VALUES ($1, $2, $3, $4)",
+	// 		transactionID, details[i].ProductID, details[i].Quantity, details[i].Subtotal)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	for i := range details {
 		details[i].TransactionID = transactionID
@@ -86,4 +101,57 @@ func (repo *TransactionRepository) CreateTransaction(items []models.CheckoutItem
 		TotalAmount: totalAmount,
 		Details:     details,
 	}, nil
+}
+
+func (r *TransactionRepository) GetTodayReport() (*models.TodayReport, error) {
+    today := time.Now().Truncate(24 * time.Hour)
+
+    // Total revenue
+    var totalRevenue sql.NullInt64
+    err := r.db.QueryRow("SELECT COALESCE(SUM(total_amount), 0) FROM transactions WHERE created_at >= $1", today).Scan(&totalRevenue)
+    if err != nil {
+        return nil, err
+    }
+
+    // Total transaksi
+    var totalTransaksi int
+    err = r.db.QueryRow("SELECT COUNT(*) FROM transactions WHERE created_at >= $1", today).Scan(&totalTransaksi)
+    if err != nil {
+        return nil, err
+    }
+
+    // Produk terlaris - pakai struct local dulu
+    type topProductStruct struct {
+        name     string
+        totalQty int
+    }
+    var topProduct topProductStruct
+    
+    err = r.db.QueryRow(`
+        SELECT p.name, COALESCE(SUM(td.quantity), 0) 
+        FROM transactions t 
+        JOIN transaction_details td ON t.id = td.transaction_id 
+        JOIN products p ON td.product_id = p.id 
+        WHERE t.created_at >= $1 
+        GROUP BY p.id, p.name 
+        ORDER BY SUM(td.quantity) DESC 
+        LIMIT 1
+    `, today).Scan(&topProduct.name, &topProduct.totalQty)
+
+    // Default value kalau belum ada data
+    report := &models.TodayReport{
+        TotalRevenue:   int(totalRevenue.Int64),
+        TotalTransaksi: totalTransaksi,
+        ProdukTerlaris: models.ProdukTerlaris{Nama: "", QtyTerjual: 0},
+    }
+
+    // Kalau ada produk terlaris, update
+    if err == nil {
+        report.ProdukTerlaris = models.ProdukTerlaris{
+            Nama:       topProduct.name,
+            QtyTerjual: topProduct.totalQty,
+        }
+    }
+
+    return report, nil
 }

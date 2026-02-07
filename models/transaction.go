@@ -1,9 +1,12 @@
 package models
 
+import "time"
+
 type Transaction struct {
 	ID                 int                `json:"id"`
 	TotalAmount        int                `json:"total_amount"`
 	Details []TransactionDetails `json:"details"`
+	CreatedAt   time.Time            `json:"created_at,omitempty"`
 }
 
 type TransactionDetails struct {
